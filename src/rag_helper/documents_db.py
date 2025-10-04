@@ -1,7 +1,6 @@
 import pathlib
 import re
 from logging import getLogger
-from typing import List
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders.directory import DirectoryLoader
@@ -14,13 +13,16 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
 
-from giga_helper import settings
-from giga_helper.settings import DOC_PATH
+from rag_helper import DATA_PATH
 
 _logger = getLogger(__name__)
+# _logger.setLevel(INFO)
 
+_DOC_PATH = str(DATA_PATH / "rag_data")
+_CHUNK_SIZE = 1400
+_CHUNK_OVERLAP = 70
 
-def get_docs(doc_path) -> List[Document]:
+def get_docs(doc_path: str) -> list[Document]:
     documents: list[Document] = []
     loaders: list[DirectoryLoader] = [
         DirectoryLoader(doc_path, glob="**/*.txt", loader_cls=TextLoader,
@@ -34,8 +36,8 @@ def get_docs(doc_path) -> List[Document]:
                         loader_kwargs={'bs_kwargs': {"features": "html.parser"}}),
     ]
     common_text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=settings.CHUNK_SIZE,
-        chunk_overlap=settings.CHUNK_OVERLAP,
+        chunk_size=_CHUNK_SIZE,
+        chunk_overlap=_CHUNK_OVERLAP,
         separators=["\n\n\n", "\n\n", "\n"],
         keep_separator=False,
         is_separator_regex=False
@@ -66,10 +68,10 @@ def get_docs(doc_path) -> List[Document]:
     return documents
 
 
-def get_vector_db(embeddings: Embeddings) -> VectorStore:
-    _logger.debug("Загрузка документов из %s", DOC_PATH)
-    documents = get_docs(DOC_PATH)
-    _logger.debug("Получили документов: %s", len(documents))
+def load_vector_store(embeddings: Embeddings) -> VectorStore:
+    _logger.info("Загрузка документов из %s", _DOC_PATH)
+    documents = get_docs(_DOC_PATH)
+    _logger.info("Получили документов: %s", len(documents))
     db = FAISS.from_documents(
         documents,
         embeddings,

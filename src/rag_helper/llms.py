@@ -3,24 +3,13 @@ import pathlib
 from dataclasses import dataclass
 from typing import Any, Dict
 
-from langchain_community.chat_models.gigachat import GigaChat
-from langchain_community.embeddings.gigachat import GigaChatEmbeddings
+from langchain_gigachat import GigaChat, GigaChatEmbeddings
 
-from giga_helper import VERBOSE
-
-
-CHUNK_SIZE = 1400
-CHUNK_OVERLAP = 70
-
-DOC_PATH = str(pathlib.Path(__file__).parent.parent / 'rag_data')
-
-TEST_CP_GOOD_PATH = str(pathlib.Path(__file__).parent / 'mocks' / 'cp_good.json')
-TEST_CP_NOT_CACL_PATH = str(pathlib.Path(__file__).parent / 'mocks' / 'cp_not_calc.json')
-TEST_CP_BAD_PATH = str(pathlib.Path(__file__).parent / 'mocks' / 'cp_bad.json')
+from rag_helper import VERBOSE
 
 
 @dataclass
-class GigaSettings:
+class ModelsStorage:
     stand: str = "ext"  # "ext" - внешний(для тестов), "ift", "uat", "prod"
 
     def __post_init__(self):
@@ -39,7 +28,7 @@ class GigaSettings:
             base_url = "https://gigachat.devices.sberbank.ru/api/v1"
             auth_url = "https://sm-auth-sd.prom-88-89-apps.ocp-geo.ocp.sigma.sbrf.ru/api/v2/oauth"
             giga_cred = os.getenv("GIGA_CRED_TOKEN")
-            scope = "GIGACHAT_API_CORP"
+            scope = os.getenv("GIGA_SCOPE")
 
             model_options = {
                 **model_options,

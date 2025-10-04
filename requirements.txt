@@ -2,11 +2,12 @@ langchain
 langchain-community
 langchain-core
 langchain-experimental
+langchain-gigachat
 langchain-openai
 langchain-text-splitters
+langgraph
 unstructured
 
-gigachat
 faiss-cpu
 docx2txt
 python-dotenv

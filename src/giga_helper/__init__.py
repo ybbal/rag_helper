@@ -1,1 +1,0 @@
-VERBOSE: bool = False
