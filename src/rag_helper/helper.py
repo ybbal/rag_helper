@@ -34,7 +34,8 @@ class RagHelper:
         )
         answer = RagHelperAnswer(
             text_message=chain_invoke["messages"][-1].content,
-            attachment_paths=chain_invoke.get("output_attachment_paths")
+            attachment_paths=chain_invoke.get("output_attachment_paths"),
+            need_feedback=chain_invoke.get("need_feedback"),
         )
         self.rag_chain.update_state(_RUNNABLE_CONFIG, {"output_attachment_paths": None})
         return answer

@@ -3,3 +3,5 @@
 /test/giga/*.xlsx
 /deposit_bot.log
 /.idea/
+**/__pycache__/
+*.pyc

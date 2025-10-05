@@ -1,18 +1,18 @@
 import logging
 import os
-import pathlib
 import uuid
 from asyncio import sleep
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ChatAction
-from telegram.error import Forbidden
 from telegram.ext import ContextTypes
 
 from rag_helper.helper import RagHelper
 from rag_helper.llms import ModelsStorage
 from rag_helper.models import RagHelperAnswer
-from tg_bot import INSTRUCTIONS_PATH, USER_TMP_STORAGE_PATH
+from tg_bot import USER_TMP_STORAGE_PATH
+from tg_bot.helpers import forward_to_admin
+from tg_bot.statistics import update_stats, get_stats_message
 
 _logger = logging.getLogger(__name__)
 _logger.setLevel(logging.INFO)
@@ -36,7 +36,8 @@ async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def answer_by_helper(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
-    await _forward_to_admin(update, context)
+    update_stats(update, context)
+    await forward_to_admin(update, context)
 
     _logger.info("Вопрос %s:\n%s", update.message.from_user.username, update.message.text or update.message.caption)
 
@@ -75,12 +76,29 @@ async def answer_by_helper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result.text_message = f"Простите, что заставил ждать.\n{result.text_message}"
 
     _logger.info("Ответ %s:\n%s", update.message.from_user.username, result.text_message)
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=result.text_message,
-                                   disable_web_page_preview=False)
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=result.text_message,
+        disable_web_page_preview=False,
+        reply_markup=get_reply_markup(result)
+    )
     if result.attachment_paths:
         for path in result.attachment_paths:
             await context.bot.send_photo(chat_id=update.effective_chat.id, photo=path)
     return
+
+
+def get_reply_markup(result: RagHelperAnswer) -> InlineKeyboardMarkup | None:
+    if not result.need_feedback:
+        return None
+    keyboard = [
+        [
+            InlineKeyboardButton("👍 Полезно", callback_data="feedback_good"),
+            InlineKeyboardButton("👎 Не полезно", callback_data="feedback_bad"),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    return reply_markup
 
 
 def create_helper():
@@ -99,137 +117,33 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# --- ПЕРЕМЕЩЕННЫЕ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+async def feedback_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
 
-async def _send_document(update: Update, context: ContextTypes.DEFAULT_TYPE, file_path: pathlib.Path,
-                         user_filename: str, log_intent: str, caption: str = None):
-    _logger.info("Запрос на документ по интенту '%s' от %s", log_intent, update.message.from_user.username)
+    await query.answer()
 
-    try:
+    feedback_data = query.data
+    user = query.from_user
 
-        if not file_path.is_file():
-            _logger.error("Файл не найден по пути: %s", file_path)
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f"Извините, не могу найти файл '{user_filename}'. Обратитесь к администратору."
-            )
-            return
+    _logger.info(
+        f"Получена обратная связь от {user.username} (ID: {user.id}): "
+        f"'{feedback_data}' на ответ: '{query.message.text[:50]}...'"
+    )
 
-        await context.bot.send_document(
-            chat_id=update.effective_chat.id,
-            document=open(file_path, 'rb'),
-            filename=user_filename,
-            caption=caption
-        )
-        _logger.info("Документ '%s' успешно отправлен пользователю %s", user_filename,
-                     update.message.from_user.username)
+    await query.edit_message_reply_markup(reply_markup=None)
 
-    except Exception as e:
-        _logger.error("Критическая ошибка при отправке документа '%s': %s", user_filename, e)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Произошла непредвиденная ошибка при отправке файла."
-        )
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Спасибо за ваш отзыв!",
 
-
-async def _send_video(update: Update, context: ContextTypes.DEFAULT_TYPE, file_path: pathlib.Path, user_filename: str,
-                      log_intent: str, caption: str = None):
-    _logger.info("Запрос на видео по интенту '%s' от %s", log_intent, update.message.from_user.username)
-
-    try:
-
-        if not file_path.is_file():
-            _logger.error("Файл не найден по пути: %s", file_path)
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f"Извините, не могу найти файл '{user_filename}'. Обратитесь к администратору."
-            )
-            return
-
-        await context.bot.send_video(
-            chat_id=update.effective_chat.id,
-            video=open(file_path, 'rb'),
-            filename=user_filename,
-            caption=caption
-        )
-        _logger.info("Видео '%s' успешно отправлено пользователю %s", user_filename, update.message.from_user.username)
-
-    except Exception as e:
-        _logger.error("Критическая ошибка при отправке видео '%s': %s", user_filename, e)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Произошла непредвиденная ошибка при отправке файла."
-        )
-
-
-# --- ОБРАБОТЧИКИ ИНТЕНТОВ ---
-
-async def handle_sberdocs_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await _forward_to_admin(update, context)
-    file_path = INSTRUCTIONS_PATH / "SberDocs.docx"
-    await _send_document(
-        update,
-        context,
-        file_path=file_path,
-        user_filename="Инструкция_SberDocs.docx",
-        log_intent="СберДокс",
-        caption="Ознакомьтесь с подробной инструкцией открыв файл"
+        reply_to_message_id=query.message.message_id
     )
 
 
-async def handle_trip_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await _forward_to_admin(update, context)
-    file_path = INSTRUCTIONS_PATH / "Инструкция по командировкам.docx"
-    await _send_document(
-        update,
-        context,
-        file_path=file_path,
-        user_filename="Инструкция по командировкам.docx",
-        log_intent="Командировки",
-        caption="Ознакомьтесь с подробной инструкцией открыв файл"
-    )
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != _ADMIN_ID:
+        _logger.warning(f"Попытка несанкционированного доступа к статистике от пользователя {update.effective_user.id}")
+        return
+    stats_message = get_stats_message(context)
 
-
-async def handle_kprib_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await _forward_to_admin(update, context)
-    file_path = INSTRUCTIONS_PATH / "Барабан.mp4"
-    await _send_video(
-        update,
-        context,
-        file_path=file_path,
-        user_filename="Барабан.mp4",
-        log_intent="кприб",
-        caption="крутите барабан"
-    )
-
-
-async def _forward_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user = update.message.from_user
-        user_info_parts = []
-        if user.first_name:
-            user_info_parts.append(user.first_name)
-        if user.last_name:
-            user_info_parts.append(user.last_name)
-        if user.username:
-            user_info_parts.append(f"(@{user.username})")
-
-        user_info = " ".join(user_info_parts) if user_info_parts else f"ID: {user.id}"
-
-        _logger.info(f"Пересылка сообщения от {user_info} администратору (ID: {_ADMIN_ID})")
-
-        await context.bot.send_message(
-            chat_id=_ADMIN_ID,
-            text=f"Получено новое сообщение от пользователя: {user_info}"
-        )
-
-        await context.bot.forward_message(
-            chat_id=_ADMIN_ID,
-            from_chat_id=update.effective_chat.id,
-            message_id=update.message.message_id
-        )
-    except Forbidden:
-        _logger.error(f"Не удалось отправить сообщение администратору (ID: {_ADMIN_ID}). "
-                      f"Возможно, бот заблокирован администратором.")
-    except Exception as e:
-        _logger.error(f"Непредвиденная ошибка при пересылке сообщения администратору: {e}")
+    await context.bot.send_message(chat_id=_ADMIN_ID, text=stats_message)

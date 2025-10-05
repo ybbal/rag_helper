@@ -3,7 +3,7 @@ import uuid
 
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage, ToolMessage, BaseMessage
+from langchain_core.messages import SystemMessage, ToolMessage, BaseMessage, AIMessage
 from langchain_core.tools import tool
 from langchain_core.vectorstores import VectorStore
 from langchain_gigachat import GigaChat
@@ -27,7 +27,8 @@ def get_rag_chain(
 
     @tool(response_format="content_and_artifact")
     def retrieve(query: str):
-        """Получить информацию для корректного ответа. Обязателен для новых вопросов."""
+        """Получить информацию для корректного ответа.
+        Обязателен для новых вопросов, кроме обычного общения, например, привет, как дела, спасибо"""
         retrieved_docs = vector_store.similarity_search(
             query,
             k=int(os.getenv("RAG_CHUNK_COUNT")),
@@ -81,9 +82,12 @@ def get_rag_chain(
         llm_with_tools = llm.bind_tools([retrieve])
         system_message_content = os.getenv("FINAL_PROMPT_START")
         prompt = [SystemMessage(system_message_content)] + state["messages"]
-        response = llm_with_tools.invoke(prompt)
+        response: AIMessage = llm_with_tools.invoke(prompt)
         # MessagesState appends messages to state instead of overwriting
-        return {"messages": [response]}
+        return {
+            "messages": [response],
+            "need_feedback": True if response.tool_calls else False
+        }
 
     # Step 2: Execute the retrieval.
     tools = ToolNode([retrieve])
