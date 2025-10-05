@@ -16,3 +16,5 @@ if VERBOSE:
 SRC_PATH = pathlib.Path(__file__).resolve().parent.parent
 PROJECT_PATH = SRC_PATH.parent
 DATA_PATH = PROJECT_PATH / "data"
+TMP_STORAGE_PATH = DATA_PATH / "tmp"
+EXTRACTED_IMAGES_PATH = TMP_STORAGE_PATH / "user_img_storage"

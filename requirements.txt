@@ -6,9 +6,10 @@ langchain-gigachat
 langchain-openai
 langchain-text-splitters
 langgraph
-unstructured
 
 faiss-cpu
 docx2txt
+docx2python
 python-dotenv
+python-docx
 python-telegram-bot

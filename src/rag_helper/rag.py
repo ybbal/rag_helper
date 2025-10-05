@@ -21,39 +21,59 @@ def get_rag_chain(
         llm: BaseChatModel,
         embeddings: Embeddings,
         memory: BaseCheckpointSaver | None = None,
-        agent_mode: bool = False,
+        agent_mode: bool = True,
 ) -> CompiledStateGraph:
     vector_store = load_or_get_vector_store(embeddings)
 
     @tool(response_format="content_and_artifact")
     def retrieve(query: str):
-        """Получить информацию для ответа."""
-        retrieved_docs = vector_store.similarity_search(query, k=2)
+        """Получить информацию для корректного ответа. Обязателен для новых вопросов."""
+        retrieved_docs = vector_store.similarity_search(
+            query,
+            k=int(os.getenv("RAG_CHUNK_COUNT")),
+            # score_threshold= 150
+        )
         serialized = "\n\n".join(
             doc.page_content
             for doc in retrieved_docs
         )
         return serialized, retrieved_docs
 
-    def force_retrieve(state: State):
-        def transform_human_content(content):
-            if isinstance(content, str):
-                return content
-            elif isinstance(content, list):
-                return "\n".join(
-                    message.get("text")
-                    for message in content
-                    if message.get("type") == "text"
-                )
-            return ""
-
+    def get_retrieve_str_query(state: State) -> str:
         rag_query = "\n".join(
-            transform_human_content(message.content)
+            transform_content_for_retrieve(message.content)
             for message in state["messages"]
-            if message.type == "human"
+            if message.type == "human" or message.type == "ai"
         )
-        rag_content = retrieve.invoke(rag_query)
-        return {"messages": ToolMessage(content=rag_content, tool_call_id=uuid.uuid4())}
+        return rag_query
+
+    def transform_content_for_retrieve(content):
+        if isinstance(content, str):
+            return content
+        elif isinstance(content, list):
+            return "\n".join(
+                message.get("text")
+                for message in content
+                if message.get("type") == "text"
+            )
+        return ""
+
+    def force_retrieve(state: State):
+        rag_query = get_retrieve_str_query(state)
+        rag_content_tool_message: ToolMessage = retrieve.invoke(
+            {
+                "name": "retrieve",
+                "args": {"query": rag_query},
+                "id": uuid.uuid4(),  # required
+                "type": "tool_call",  # required
+            }
+        )
+        image_paths = rag_content_tool_message.artifact[0].metadata.get('image_paths') or []
+        old_image_paths = state.get("output_attachment_paths")
+        return {
+            "messages": rag_content_tool_message,
+            "output_attachment_paths": image_paths if image_paths != old_image_paths else None
+        }
 
     # Step 1: Generate an AIMessage that may include a tool-call to be sent.
     def query_or_respond(state: State):
@@ -97,9 +117,9 @@ def get_rag_chain(
         ]
         prompt = [SystemMessage(system_message_content)] + conversation_messages
 
-        async def add_attachment_if_exists(prompt: list[BaseMessage], state: State) -> list[BaseMessage]:
-            if state.get("attachment") and isinstance(llm, GigaChat):
-                with open(state["attachment"], "rb") as file_reader:
+        async def add_input_attachment_if_exists(prompt: list[BaseMessage], state: State) -> list[BaseMessage]:
+            if state.get("input_attachment_path") and isinstance(llm, GigaChat):
+                with open(state["input_attachment_path"], "rb") as file_reader:
                     file = await llm.aupload_file(file=file_reader)
                 prompt[-1].content = [
                     {
@@ -116,10 +136,18 @@ def get_rag_chain(
                 ]
             return prompt
 
+        prompt = await add_input_attachment_if_exists(prompt, state)
         # Run
-        prompt = await add_attachment_if_exists(prompt, state)
         response = llm.invoke(prompt)
-        return {"messages": [response]}
+
+        return {
+            "messages": [response],
+            "output_attachment_paths": (
+                tool_messages[0].artifact[0].metadata.get('image_paths')
+                if tool_messages[0].artifact
+                else None
+            )
+        }
 
     graph_builder = StateGraph(State)
     graph_builder.add_node(force_retrieve)
