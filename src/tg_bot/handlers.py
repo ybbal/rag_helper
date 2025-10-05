@@ -5,6 +5,7 @@ import uuid
 from asyncio import sleep
 
 from telegram import Update
+from telegram.constants import ChatAction
 from telegram.error import Forbidden
 from telegram.ext import ContextTypes
 
@@ -34,6 +35,7 @@ async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def answer_by_helper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
     await _forward_to_admin(update, context)
 
     _logger.info("Вопрос %s:\n%s", update.message.from_user.username, update.message.text or update.message.caption)
