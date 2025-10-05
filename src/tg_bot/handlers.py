@@ -12,7 +12,7 @@ from rag_helper.llms import ModelsStorage
 from rag_helper.models import RagHelperAnswer
 from tg_bot import USER_TMP_STORAGE_PATH
 from tg_bot.helpers import forward_to_admin
-from tg_bot.statistics import update_stats, get_stats_message
+from tg_bot.statistics import update_stats
 
 _logger = logging.getLogger(__name__)
 _logger.setLevel(logging.INFO)
@@ -141,9 +141,10 @@ async def feedback_button_handler(update: Update, context: ContextTypes.DEFAULT_
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != _ADMIN_ID:
-        _logger.warning(f"Попытка несанкционированного доступа к статистике от пользователя {update.effective_user.id}")
-        return
-    stats_message = get_stats_message(context)
-
-    await context.bot.send_message(chat_id=_ADMIN_ID, text=stats_message)
+    pass
+    # if update.effective_user.id != _ADMIN_ID:
+    #     _logger.warning(f"Попытка несанкционированного доступа к статистике от пользователя {update.effective_user.id}")
+    #     return
+    # stats_message = get_stats_message(context)
+    #
+    # await context.bot.send_message(chat_id=_ADMIN_ID, text=stats_message)

@@ -1,26 +1,23 @@
-import datetime
 import os
-from zoneinfo import ZoneInfo
 
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, JobQueue, CallbackQueryHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 
 from tg_bot.handlers import start, clear, feedback, answer_by_helper, unknown, stats_command, feedback_button_handler
 from tg_bot.intents import handle_sberdocs_request, handle_trip_request, handle_kprib_request
-from tg_bot.statistics import reset_stats
 
 
 def get_app():
-    job_queue = JobQueue()
-    job_queue.run_daily(
-        reset_stats,
-        time=datetime.time(hour=0, minute=0, second=0, tzinfo=ZoneInfo("Europe/Moscow")),
-        name="daily_stats_reset"
-    )
+    # job_queue = JobQueue()
+    # job_queue.run_daily(
+    #     reset_stats,
+    #     time=datetime.time(hour=0, minute=0, second=0, tzinfo=ZoneInfo("Europe/Moscow")),
+    #     name="daily_stats_reset"
+    # )
 
     application = (
         ApplicationBuilder()
         .token(os.getenv("TELEGRAM_BOT_TOKEN"))
-        .job_queue(job_queue)
+        # .job_queue(job_queue)
         .read_timeout(30)
         .write_timeout(30)
         .build()

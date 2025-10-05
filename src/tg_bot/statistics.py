@@ -7,14 +7,15 @@ _logger = logging.getLogger(__name__)
 
 
 def update_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-
-    stats = context.bot_data.setdefault('daily_stats', {'total_messages': 0, 'unique_users': set()})
-
-    stats['total_messages'] += 1
-    stats['unique_users'].add(user_id)
-    _logger.info(
-        f"Статистика обновлена. Всего сообщений: {stats['total_messages']}, уникальных пользователей: {len(stats['unique_users'])}")
+    pass
+    # user_id = update.effective_user.id
+    #
+    # stats = context.bot_data.setdefault('daily_stats', {'total_messages': 0, 'unique_users': set()})
+    #
+    # stats['total_messages'] += 1
+    # stats['unique_users'].add(user_id)
+    # _logger.info(
+    #     f"Статистика обновлена. Всего сообщений: {stats['total_messages']}, уникальных пользователей: {len(stats['unique_users'])}")
 
 
 def get_stats_message(context: ContextTypes.DEFAULT_TYPE) -> str:
@@ -32,5 +33,6 @@ def get_stats_message(context: ContextTypes.DEFAULT_TYPE) -> str:
 
 
 async def reset_stats(context: ContextTypes.DEFAULT_TYPE):
-    context.bot_data['daily_stats'] = {'total_messages': 0, 'unique_users': set()}
-    _logger.info("Суточная статистика сброшена.")
+    pass
+    # context.bot_data['daily_stats'] = {'total_messages': 0, 'unique_users': set()}
+    # _logger.info("Суточная статистика сброшена.")
