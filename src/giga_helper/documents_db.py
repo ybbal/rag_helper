@@ -62,7 +62,7 @@ def get_docs(doc_path) -> List[Document]:
         docs = [doc.copy(update={"page_content": update_chunk_content(doc.page_content, doc.metadata)}) for doc in docs]
         documents += docs
 
-    # print(*documents, sep="\n\n")
+    print(*documents, sep="\n\n")
     return documents
 
 

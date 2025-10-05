@@ -8,7 +8,6 @@ from langchain_community.embeddings.gigachat import GigaChatEmbeddings
 
 from giga_helper import VERBOSE
 
-
 CHUNK_SIZE = 1400
 CHUNK_OVERLAP = 70
 
@@ -39,7 +38,7 @@ class GigaSettings:
             base_url = "https://gigachat.devices.sberbank.ru/api/v1"
             auth_url = "https://sm-auth-sd.prom-88-89-apps.ocp-geo.ocp.sigma.sbrf.ru/api/v2/oauth"
             giga_cred = os.getenv("GIGA_CRED_TOKEN")
-            scope = "GIGACHAT_API_CORP"
+            scope = "GIGACHAT_API_PERS"
 
             model_options = {
                 **model_options,
